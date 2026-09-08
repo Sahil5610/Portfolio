@@ -1,0 +1,775 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+const _bg = Color(0xff0c041b);
+const _header = Color(0xff1a0b2e);
+const _purple = Color(0xff7127ba);
+const _violet = Color(0xffa362ff);
+
+// mobile < 600 | tablet 600-899 | desktop >= 900
+
+double _fs(double w, double mobile, double tablet, double desktop) =>
+    w < 600 ? mobile : w < 900 ? tablet : desktop;
+
+class FigmaPortfolioApp extends StatelessWidget {
+  const FigmaPortfolioApp({super.key});
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'Sahil Tamboli | Portfolio',
+        theme: ThemeData(
+          brightness: Brightness.dark,
+          scaffoldBackgroundColor: _bg,
+          textTheme: GoogleFonts.preahvihearTextTheme(ThemeData.dark().textTheme),
+          useMaterial3: true,
+        ),
+        home: const _Portfolio(),
+      );
+}
+
+class _Portfolio extends StatefulWidget {
+  const _Portfolio();
+  @override
+  State<_Portfolio> createState() => _PortfolioState();
+}
+
+class _PortfolioState extends State<_Portfolio> {
+  final _home = GlobalKey();
+  final _about = GlobalKey();
+  final _lab = GlobalKey();
+
+  void _scroll(GlobalKey k) {
+    final ctx = k.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(ctx,
+          duration: const Duration(milliseconds: 650), curve: Curves.easeOutCubic);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    final mobile = w < 600;
+    return Scaffold(
+      body: Stack(children: [
+        const Positioned.fill(child: IgnorePointer(child: _Glow())),
+        SingleChildScrollView(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            _NavBar(mobile: mobile, onHome: () => _scroll(_home),
+                onAbout: () => _scroll(_about), onLab: () => _scroll(_lab)),
+            _Pad(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _HeroSection(key: _home),
+              _IntroSection(key: _about),
+              const _ExperienceSection(),
+              const _SkillsSection(),
+              _ProjectsSection(key: _lab),
+              const _ContactSection(),
+            ])),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+// ─── Layout helpers ───────────────────────────────────────────────────────────
+
+class _Pad extends StatelessWidget {
+  const _Pad({required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1100),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: w < 600 ? 16 : 32),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+// ─── NavBar ───────────────────────────────────────────────────────────────────
+
+class _NavBar extends StatelessWidget {
+  const _NavBar({required this.mobile, required this.onHome,
+      required this.onAbout, required this.onLab});
+  final bool mobile;
+  final VoidCallback onHome, onAbout, onLab;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        height: mobile ? 60 : 88,
+        color: _header,
+        child: _Pad(
+          child: Row(children: [
+            const _Logo(),
+            const Spacer(),
+            if (mobile)
+              PopupMenuButton<int>(
+                color: _header,
+                icon: const Icon(Icons.menu_rounded, color: Colors.white),
+                onSelected: (v) => [onHome, onAbout, onLab][v](),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 0, child: Text('Home')),
+                  PopupMenuItem(value: 1, child: Text('About')),
+                  PopupMenuItem(value: 2, child: Text('Lab')),
+                ],
+              )
+            else ...[
+              _NavLink('Home', onHome),
+              const SizedBox(width: 48),
+              _NavLink('About', onAbout),
+              const SizedBox(width: 48),
+              _NavLink('Lab', onLab),
+            ],
+          ]),
+        ),
+      );
+}
+
+class _NavLink extends StatelessWidget {
+  const _NavLink(this.label, this.onTap);
+  final String label;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => TextButton(
+        onPressed: onTap,
+        child: Text(label,
+            style: GoogleFonts.plusJakartaSans(
+                color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
+      );
+}
+
+class _Logo extends StatelessWidget {
+  const _Logo();
+  @override
+  Widget build(BuildContext context) =>
+      SizedBox(width: 28, height: 28, child: CustomPaint(painter: _LogoPainter()));
+}
+
+class _LogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size s) {
+    final p = Paint()
+      ..color = Colors.white
+      ..strokeWidth = s.width * .12
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    final lo = s.width * .18, hi = s.width * .82;
+    canvas.drawLine(Offset(hi, lo), Offset(lo, lo), p);
+    canvas.drawLine(Offset(lo, lo), Offset(hi, s.height - lo), p);
+    canvas.drawLine(Offset(hi, s.height - lo), Offset(lo, s.height - lo), p);
+  }
+
+  @override
+  bool shouldRepaint(_) => false;
+}
+
+// ─── Hero ─────────────────────────────────────────────────────────────────────
+
+const _rotatingPhrases = [
+  "I'm an AI/ML Engineer.",
+  "I'm a Software Developer.",
+  "I'm a Cloud Enthusiast.",
+  "I build intelligent applications.",
+];
+
+class _HeroSection extends StatefulWidget {
+  const _HeroSection({super.key});
+  @override
+  State<_HeroSection> createState() => _HeroSectionState();
+}
+
+class _HeroSectionState extends State<_HeroSection>
+    with SingleTickerProviderStateMixin {
+  int _phraseIndex = 0;
+  String _displayed = '';
+  bool _typing = true;
+  late final _cursor = ValueNotifier<bool>(true);
+
+  @override
+  void initState() {
+    super.initState();
+    _startCursorBlink();
+    _typeNext();
+  }
+
+  void _startCursorBlink() async {
+    while (mounted) {
+      await Future.delayed(const Duration(milliseconds: 530));
+      if (mounted) _cursor.value = !_cursor.value;
+    }
+  }
+
+  void _typeNext() async {
+    final phrase = _rotatingPhrases[_phraseIndex];
+    // type in
+    for (var i = 1; i <= phrase.length; i++) {
+      if (!mounted) return;
+      await Future.delayed(const Duration(milliseconds: 55));
+      setState(() { _displayed = phrase.substring(0, i); _typing = true; });
+    }
+    await Future.delayed(const Duration(milliseconds: 1800));
+    // erase
+    for (var i = phrase.length - 1; i >= 0; i--) {
+      if (!mounted) return;
+      await Future.delayed(const Duration(milliseconds: 32));
+      setState(() { _displayed = phrase.substring(0, i); _typing = false; });
+    }
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (mounted) {
+      setState(() => _phraseIndex = (_phraseIndex + 1) % _rotatingPhrases.length);
+      _typeNext();
+    }
+  }
+
+  @override
+  void dispose() {
+    _cursor.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    final mobile = w < 600;
+    final imgSize = w < 400 ? 110.0 : mobile ? 140.0 : 180.0;
+    final titleSize = _fs(w, 22, 32, 42);
+    final subSize = _fs(w, 13, 15, 17);
+
+    final typingWidget = ValueListenableBuilder<bool>(
+      valueListenable: _cursor,
+      builder: (_, cur, __) => RichText(
+        text: TextSpan(
+          style: TextStyle(fontSize: titleSize, height: 1.15, letterSpacing: .4),
+          children: [
+            TextSpan(text: _displayed, style: const TextStyle(color: _violet)),
+            TextSpan(
+              text: cur ? '|' : ' ',
+              style: TextStyle(color: _violet, fontWeight: FontWeight.w300),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final subheading = Text(
+      'Building intelligent applications with AI, Machine Learning, Flutter & Cloud.',
+      style: TextStyle(fontSize: subSize, color: Colors.white60, height: 1.5),
+    );
+
+    final heroArt = Image.asset(
+      'assets/figma/hero.png',
+      width: imgSize, height: imgSize, fit: BoxFit.contain,
+    );
+
+    final heroWords = Column(
+      crossAxisAlignment: mobile ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      children: [
+        Text('A Developer who',
+            textAlign: mobile ? TextAlign.center : TextAlign.left,
+            style: const TextStyle(fontSize: 13, decoration: TextDecoration.underline,
+                color: Colors.white70)),
+        const SizedBox(height: 10),
+        RichText(
+          textAlign: mobile ? TextAlign.center : TextAlign.left,
+          text: TextSpan(
+            style: TextStyle(fontSize: _fs(w, 18, 24, 28), height: 1.2, color: Colors.white),
+            children: const [
+              TextSpan(text: 'Turns ideas into '),
+              TextSpan(text: 'intelligent', style: TextStyle(color: _purple)),
+              TextSpan(text: ' products.'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text('AI · ML · Flutter · Cloud',
+            textAlign: mobile ? TextAlign.center : TextAlign.left,
+            style: TextStyle(fontSize: 11, color: _violet.withOpacity(.8),
+                letterSpacing: 1.2)),
+      ],
+    );
+
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: mobile ? 44 : 88),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // avatar + tagline card
+        if (mobile)
+          Column(crossAxisAlignment: CrossAxisAlignment.center,
+              children: [heroArt, const SizedBox(height: 20), heroWords])
+        else
+          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            heroArt,
+            const SizedBox(width: 28),
+            Expanded(child: heroWords),
+          ]),
+        SizedBox(height: mobile ? 36 : 56),
+        // animated typing heading
+        typingWidget,
+        const SizedBox(height: 12),
+        subheading,
+      ]),
+    );
+  }
+}
+
+// ─── Intro ────────────────────────────────────────────────────────────────────
+
+class _IntroSection extends StatelessWidget {
+  const _IntroSection({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    return Padding(
+      padding: EdgeInsets.only(bottom: w < 600 ? 56 : 96),
+      child: Text(
+        "I'm a passionate developer focused on building intelligent, scalable, and "
+        'user-centric applications. I work across AI/ML, Generative AI, NLP, Flutter, '
+        'Python, databases, and cloud technologies, turning ideas into practical digital products.',
+        style: TextStyle(fontSize: _fs(w, 14, 17, 20), height: 1.75, letterSpacing: .3),
+      ),
+    );
+  }
+}
+
+// ─── Experience ───────────────────────────────────────────────────────────────
+
+class _ExpData {
+  const _ExpData({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.description,
+    required this.tags,
+    required this.buttonLabel,
+    this.certificateAsset,
+  });
+  final IconData icon;
+  final String title, subtitle, description, buttonLabel;
+  final List<String> tags;
+  final String? certificateAsset;
+}
+
+const _expItems = [
+  _ExpData(
+    icon: Icons.memory_rounded,
+    title: 'IoT & Robotics Intern',
+    subtitle: 'Incubator System | Technology  •  Jan 2026 – Feb 2026',
+    description:
+        'Gained hands-on experience in IoT, robotics, embedded systems, sensors, '
+        'microcontrollers, and wireless communication. Worked with C++ and Python '
+        'and developed Shastranetra, an IoT-based smart monitoring and surveillance system.',
+    tags: ['IoT', 'Robotics', 'C++', 'Python', 'Embedded Systems'],
+    buttonLabel: 'VIEW EXPERIENCE',
+    certificateAsset: 'assets/certificates/internship_certificate.jpeg',
+  ),
+  _ExpData(
+    icon: Icons.emoji_events_rounded,
+    title: 'Super X Project Competition',
+    subtitle: 'Core2Web  •  Achievement',
+    description:
+        'Participated in the Super X Project Competition organised by Core2Web '
+        'and secured a position among the Top 12+ teams.',
+    tags: ['Competition', 'Project Development', 'AI', 'Problem Solving'],
+    buttonLabel: 'VIEW ACHIEVEMENT',
+    certificateAsset: 'assets/certificates/super_x.jpg',
+  ),
+  _ExpData(
+    icon: Icons.workspace_premium_rounded,
+    title: 'Generative AI Certification',
+    subtitle: 'Core2Web  •  Certification',
+    description:
+        'Completed hands-on training in Generative AI covering LLMs, Prompt Engineering, '
+        'RAG, Vector Databases, AI Agents, LangChain, and Gemini APIs.',
+    tags: ['GenAI', 'LLMs', 'RAG', 'LangChain', 'Gemini API'],
+    buttonLabel: 'VIEW CERTIFICATION',
+    certificateAsset: 'assets/certificates/GenAi_certificate.png',
+  ),
+  _ExpData(
+    icon: Icons.model_training_rounded,
+    title: 'AI Masterclass',
+    subtitle: 'Core2Web  •  Sep 2025',
+    description:
+        'Completed a two-day AI Masterclass covering Artificial Intelligence, Machine Learning, '
+        'Computer Vision, NLP, automation, and real-world AI applications.',
+    tags: ['AI', 'Machine Learning', 'Computer Vision', 'NLP', 'Automation'],
+    buttonLabel: 'VIEW TRAINING',
+    certificateAsset: 'assets/certificates/python_certificate.png',
+  ),
+];
+
+class _ExperienceSection extends StatelessWidget {
+  const _ExperienceSection();
+  @override
+  Widget build(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    final mobile = w < 600;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 96),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Experience & Highlights',
+            style: TextStyle(fontSize: _fs(w, 24, 30, 36), letterSpacing: .6)),
+        const SizedBox(height: 28),
+        if (mobile)
+          Column(children: _expItems
+              .map((e) => Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: _ExpCard(data: e)))
+              .toList())
+        else
+          Column(children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: _ExpCard(data: _expItems[0])),
+              const SizedBox(width: 14),
+              Expanded(child: _ExpCard(data: _expItems[1])),
+            ]),
+            const SizedBox(height: 14),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: _ExpCard(data: _expItems[2])),
+              const SizedBox(width: 14),
+              Expanded(child: _ExpCard(data: _expItems[3])),
+            ]),
+          ]),
+      ]),
+    );
+  }
+}
+
+class _ExpCard extends StatefulWidget {
+  const _ExpCard({required this.data});
+  final _ExpData data;
+  @override
+  State<_ExpCard> createState() => _ExpCardState();
+}
+
+class _ExpCardState extends State<_ExpCard> {
+  bool _hover = false;
+
+  void _openCertificate(BuildContext context, _ExpData d) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: const Color(0xff130428),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * .9,
+            maxHeight: MediaQuery.of(context).size.height * .85,
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 8, 0),
+              child: Row(children: [
+                Expanded(
+                  child: Text(d.title,
+                      style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xffe3c7ff))),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Colors.white54),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 12),
+            Flexible(
+              child: ClipRRect(
+                borderRadius:
+                    const BorderRadius.vertical(bottom: Radius.circular(16)),
+                child: Image.asset(
+                  d.certificateAsset!,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.image_not_supported_rounded,
+                          color: Colors.white30, size: 48),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Certificate image not found.\nPlace the file at:\n${d.certificateAsset}',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 12, color: Colors.white38, height: 1.6),
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    final mobile = w < 600;
+    final d = widget.data;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: EdgeInsets.all(mobile ? 14 : 18),
+        decoration: _cardDeco(_hover),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // icon + title row
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const RadialGradient(
+                      colors: [Color(0xff6b28b8), Colors.transparent])),
+              child: Icon(d.icon, color: const Color(0xffe3c7ff),
+                  size: mobile ? 20 : 24),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(d.title,
+                    style: TextStyle(
+                        fontSize: mobile ? 13 : 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white)),
+                const SizedBox(height: 3),
+                Text(d.subtitle,
+                    style: TextStyle(
+                        fontSize: mobile ? 10 : 11,
+                        color: _violet.withOpacity(.85),
+                        height: 1.4)),
+              ]),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          // description
+          Text(d.description,
+              style: TextStyle(
+                  fontSize: mobile ? 11 : 12,
+                  height: 1.55,
+                  color: Colors.white70)),
+          const SizedBox(height: 12),
+          // tags
+          Wrap(
+            spacing: 5,
+            runSpacing: 5,
+            children: d.tags
+                .map((t) => Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0x33a362ff),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0x66a362ff)),
+                      ),
+                      child: Text(t,
+                          style: const TextStyle(
+                              fontSize: 10, color: Color(0xffd3c7ff))),
+                    ))
+                .toList(),
+          ),
+          const SizedBox(height: 12),
+          // button
+          OutlinedButton(
+            onPressed: d.certificateAsset != null
+                ? () => _openCertificate(context, d)
+                : null,
+            style: OutlinedButton.styleFrom(
+                minimumSize: const Size(90, 28),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                side: const BorderSide(color: Color(0xff7540ad)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8))),
+            child: Text(d.buttonLabel,
+                style: const TextStyle(fontSize: 10, color: _violet)),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+BoxDecoration _cardDeco(bool hover) => BoxDecoration(
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(
+          color: hover ? const Color(0xff9b54f1) : const Color(0xff5b24a1),
+          width: hover ? 1.5 : 1),
+      gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xff130428),
+            Color(0xff251043),
+            Color(0xff38126d),
+            Color(0xff190633)
+          ]),
+      boxShadow: [
+        BoxShadow(
+            color: hover ? const Color(0x99000000) : const Color(0x55000000),
+            blurRadius: hover ? 28 : 16,
+            offset: const Offset(3, 6))
+      ],
+    );
+
+// ─── Skills ───────────────────────────────────────────────────────────────────
+
+const _cats = [
+  _Cat('AI & Machine Learning', Icons.psychology_rounded, [
+    'Machine Learning', 'Deep Learning', 'Generative AI',
+    'Natural Language Processing', 'Large Language Models',
+    'Prompt Engineering', 'AI Application Development', 'Model Development',
+  ]),
+  _Cat('Cloud & AWS', Icons.cloud_rounded, [
+    'AWS', 'Amazon EC2', 'Amazon S3', 'AWS IAM', 'Amazon VPC',
+    'Subnets', 'Security Groups', 'Application Load Balancer',
+    'Target Groups', 'Auto Scaling', 'Amazon RDS', 'Amazon Route 53',
+    'Cloud Computing', 'Linux Server Administration', 'Nginx',
+  ]),
+  _Cat('Development', Icons.code_rounded, [
+    'Python', 'Flutter', 'Dart', 'SQL', 'HTML5', 'CSS3',
+    'REST APIs', 'Responsive UI Development', 'Cross-Platform Development',
+  ]),
+  _Cat('Databases', Icons.storage_rounded, [
+    'MySQL', 'SQL', 'Relational Database Design',
+  ]),
+  _Cat('Tools & Technologies', Icons.build_rounded, [
+    'Git', 'GitHub', 'VS Code', 'Figma', 'Postman', 'Linux', 'Vim',
+  ]),
+];
+
+class _Cat {
+  const _Cat(this.title, this.icon, this.skills);
+  final String title;
+  final IconData icon;
+  final List<String> skills;
+}
+
+class _SkillsSection extends StatelessWidget {
+  const _SkillsSection();
+  @override
+  Widget build(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    final mobile = w < 600;
+    final cols = w < 600 ? 1 : w < 900 ? 2 : 3;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 96),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Skills',
+            style: TextStyle(fontSize: _fs(w, 24, 30, 36), letterSpacing: .6)),
+        const SizedBox(height: 8),
+        RichText(
+          text: TextSpan(
+            style: TextStyle(
+                fontSize: mobile ? 13 : 14, height: 1.5, color: Colors.white70),
+            children: const [
+              TextSpan(text: 'Technologies and tools I work with across '),
+              TextSpan(
+                  text: 'AI, Cloud, and Software Development',
+                  style: TextStyle(color: _violet)),
+              TextSpan(text: '.'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        _SkillGrid(cols: cols),
+      ]),
+    );
+  }
+}
+
+class _SkillGrid extends StatelessWidget {
+  const _SkillGrid({required this.cols});
+  final int cols;
+  @override
+  Widget build(BuildContext context) {
+    final rows = <Widget>[];
+    for (var i = 0; i < _cats.length; i += cols) {
+      final slice = _cats.sublist(i, (i + cols).clamp(0, _cats.length));
+      rows.add(Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (var j = 0; j < slice.length; j++) ...[
+            if (j > 0) const SizedBox(width: 14),
+            Expanded(child: _SkillCard(cat: slice[j])),
+          ],
+          for (var k = slice.length; k < cols; k++) ...[
+            const SizedBox(width: 14),
+            const Expanded(child: SizedBox()),
+          ],
+        ],
+      ));
+      if (i + cols < _cats.length) rows.add(const SizedBox(height: 14));
+    }
+    return Column(children: rows);
+  }
+}
+
+class _SkillCard extends StatefulWidget {
+  const _SkillCard({required this.cat});
+  final _Cat cat;
+  @override
+  State<_SkillCard> createState() => _SkillCardState();
+}
+
+class _SkillCardState extends State<_SkillCard> {
+  bool _hover = false;
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(16),
+          decoration: _cardDeco(_hover),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                    color: const Color(0x336b28b8),
+                    borderRadius: BorderRadius.circular(7)),
+                child: Icon(widget.cat.icon, color: _violet, size: 16),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(widget.cat.title,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xffe3c7ff))),
+              ),
+            ]),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 5,
+              runSpacing: 5,
+              children: widget.cat.skills.map(_chip).toList(),
+            ),
+          ]),
+        ),
+      );
+
+  Widget _chip(String label) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: const Color(0x33a362ff),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0x66a362ff)),
+        ),
+        child: Text(label,
+            style: const TextStyle(fontSize: 10, color: Color(0xffd3c7ff))),
+      );
+}
+
+// ─── Projects ─────────────────────────────────────────────────────────────────
+
